@@ -1,2 +1,32 @@
 node_modules/
 .env
+
+# Next.js build artifacts
+.next/
+out/
+
+# Build and cache files
+*.log
+*.cache
+.vercel
+.netlify
+
+# PWA service worker files
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
