@@ -1,0 +1,33 @@
+{
+  "name": "wedding-photo-upload",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "export": "npm run build && next export",
+    "pwa:build": "npm run build && npm run export",
+    "pwa:analyze": "npx pwa-asset-generator --help"
+  },
+  "dependencies": {
+    "cookie": "^1.0.2",
+    "googleapis": "^128.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.263.1",
+    "multer": "^1.4.5-lts.1",
+    "multer-storage-cloudinary": "^4.0.0",
+    "next": "14.0.0",
+    "next-pwa": "^5.6.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.16",
+    "eslint": "8.48.0",
+    "eslint-config-next": "13.4.19",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.3.5"
+  }
+}
