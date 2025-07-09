@@ -380,7 +380,7 @@ const LoginPage = () => {
                     htmlFor="name"
                     className="block text-sm font-medium text-gray-700 mb-2"
                   >
-                    Welcome to our wedding celebration! Please share your name
+                    Welcome to our first class wedding celebration! Please share your name
                     with us
                   </label>
                   <input
