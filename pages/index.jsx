@@ -32,26 +32,26 @@ const WishesDisplay = dynamic(
   () => import("../components/WishesDisplay"),
   { ssr: false }
 );
-const PWAInstallPrompt = dynamic(
-  () => import("../components/PWAInstallPrompt"),
-  { ssr: false }
-);
-const PWAStatus = dynamic(
-  () => import("../components/PWAStatus"),
-  { ssr: false }
-);
-const PWATestingComponent = dynamic(
-  () => import("../components/PWATestingComponent"),
-  { ssr: false }
-);
-const ForceInstallPWA = dynamic(
-  () => import("../components/ForceInstallPWA"),
-  { ssr: false }
-);
-const NgrokPWAFix = dynamic(
-  () => import("../components/NgrokPWAFix"),
-  { ssr: false }
-);
+// const PWAInstallPrompt = dynamic(
+//   () => import("../components/PWAInstallPrompt"),
+//   { ssr: false }
+// );
+// const PWAStatus = dynamic(
+//   () => import("../components/PWAStatus"),
+//   { ssr: false }
+// );
+// const PWATestingComponent = dynamic(
+//   () => import("../components/PWATestingComponent"),
+//   { ssr: false }
+// );
+// const ForceInstallPWA = dynamic(
+//   () => import("../components/ForceInstallPWA"),
+//   { ssr: false }
+// );
+// const NgrokPWAFix = dynamic(
+//   () => import("../components/NgrokPWAFix"),
+//   { ssr: false }
+// );
 
 const WeddingPhotoApp = () => {
   const [currentPage, setCurrentPage] = useState("events");
@@ -424,7 +424,7 @@ const WeddingPhotoApp = () => {
         />
 
         {/* PWA Install Prompt - only show if not installed */}
-        <PWAInstallPrompt />
+        {/* <PWAInstallPrompt /> */}
       </div>
     </div>
   );
@@ -616,11 +616,11 @@ const WeddingPhotoApp = () => {
           content="Upload your wedding photos to our shared Google Drive collection"
         />
       </Head>
-      <PWAStatus />
+      {/* <PWAStatus />
       <PWAInstallPrompt />
       <PWATestingComponent />
       <ForceInstallPWA />
-      <NgrokPWAFix />
+      <NgrokPWAFix /> */}
       {renderMainContent()}
       <UploadNotification />
       {showUploadStatus && (
