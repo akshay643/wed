@@ -24,14 +24,6 @@ const WeddingLoader = dynamic(
   () => import("../components/WeddingLoader"),
   { ssr: false }
 );
-const WishModal = dynamic(
-  () => import("../components/WishModal"),
-  { ssr: false }
-);
-const WishesDisplay = dynamic(
-  () => import("../components/WishesDisplay"),
-  { ssr: false }
-);
 // const PWAInstallPrompt = dynamic(
 //   () => import("../components/PWAInstallPrompt"),
 //   { ssr: false }
@@ -59,8 +51,6 @@ const WeddingPhotoApp = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
   const [showUploadStatus, setShowUploadStatus] = useState(false);
-  const [wishesRefreshTrigger, setWishesRefreshTrigger] = useState(0);
-  const [isWishModalOpen, setIsWishModalOpen] = useState(false);
   const [currentBgImage, setCurrentBgImage] = useState(0);
   const [backgroundImages, setBackgroundImages] = useState([]);
   const [lastImageUpdate, setLastImageUpdate] = useState(null);
@@ -186,11 +176,6 @@ const WeddingPhotoApp = () => {
     }
   }, [backgroundImages]);
 
-  // Function to trigger wishes refresh
-  const handleWishSubmitted = () => {
-    setWishesRefreshTrigger(prev => prev + 1);
-  };
-
   // Logout function
   const handleLogout = async () => {
     try {
@@ -241,6 +226,11 @@ const WeddingPhotoApp = () => {
   ];
 
   const selectEvent = (eventId) => {
+    // Add haptic feedback for mobile devices
+    if (navigator.vibrate) {
+      navigator.vibrate(50); // Short vibration
+    }
+    
     setSelectedEvent(eventId);
     setCurrentPage("upload-options");
     setError("");
@@ -448,93 +438,152 @@ const WeddingPhotoApp = () => {
   };
 
   const renderEventSelection = () => (
-    <div
-      className="min-h-screen relative overflow-hidden transition-all duration-1000 ease-in-out"
-      style={{
-        backgroundImage: backgroundImages.length > 0
-          ? `url('${backgroundImages[currentBgImage]}')`
-          : "url('/wedding-couple.jpeg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/40"></div>
-
-      <div className="relative z-10 min-h-screen p-4">
-        <div className="max-w-2xl mx-auto">
-        {/* Top Bar with Logout */}
-        <div className="flex justify-between items-center pt-4 pb-2">
-          <div></div> {/* Spacer */}
-          <div className="flex gap-2">
-            {/* Debug: Manual cache refresh button - remove in production */}
-            <button
-              onClick={refreshBackgroundImages}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-500/20 backdrop-blur-sm hover:bg-blue-500/30 text-white rounded-full font-medium shadow-lg transition-all duration-200 hover:scale-105 border border-white/20 text-sm"
-              title="Refresh Background Images"
-            >
-              🔄
-            </button>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full font-medium shadow-lg transition-all duration-200 hover:scale-105 border border-white/20"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </div>        {/* Navigation Buttons */}
-        <div className="flex justify-center gap-3 mb-6 mt-4">
+    <div className="min-h-screen flex flex-col relative">
+      {/* Top Navigation Bar - Transparent overlay */}
+      <div className="absolute top-0 left-0 right-0 z-20 h-[10vh] bg-transparent backdrop-blur-sm flex items-center justify-between px-4">
+        {/* Left: Navigation Buttons */}
+        <div className="flex gap-3">
           <a
             href="/gallery"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-pink-500/90 backdrop-blur-sm text-white rounded-xl font-semibold shadow-lg hover:bg-pink-600 transition-all duration-200 hover:scale-105 border border-white/20"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-black/20 backdrop-blur-md text-white rounded-xl font-semibold shadow-lg active:bg-black/30 transition-all duration-200 active:scale-95 border border-white/30"
           >
-            <Gallery className="w-5 h-5" />
+            <Gallery className="w-4 h-4" />
             Gallery
           </a>
-          <button
-            onClick={() => setIsWishModalOpen(true)}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-purple-500/90 backdrop-blur-sm text-white rounded-xl font-semibold shadow-lg hover:bg-purple-600 transition-all duration-200 hover:scale-105 border border-white/20"
+          <a
+            href="/wishes"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-black/20 backdrop-blur-md text-white rounded-xl font-semibold shadow-lg active:bg-black/30 transition-all duration-200 active:scale-95 border border-white/30"
           >
-            <MessageCircle className="w-5 h-5" />
+            <MessageCircle className="w-4 h-4" />
             Wishes
-          </button>
+          </a>
         </div>
 
-        <ErrorMessage message={error} />
+        {/* Right: Logout and Debug */}
+        <div className="flex gap-2">
+          {/* Debug: Manual cache refresh button - remove in production */}
+          <button
+            onClick={refreshBackgroundImages}
+            className="flex items-center gap-2 px-3 py-2 bg-black/20 backdrop-blur-md active:bg-black/30 text-white rounded-full font-medium shadow-lg transition-all duration-200 active:scale-95 border border-white/30 text-sm"
+            title="Refresh Background Images"
+          >
+            🔄
+          </button>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 bg-black/20 backdrop-blur-md active:bg-black/30 text-white rounded-full font-medium shadow-lg transition-all duration-200 active:scale-95 border border-white/30"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </div>
+      </div>
 
-        {/* Events Grid - 2x2 layout for all events */}
-        <div className="grid grid-cols-2 gap-4 mb-8 max-w-md mx-auto">
+      {/* Top 70% - Background Image Section (Full height from top) */}
+      <div
+        className="relative overflow-hidden transition-all duration-1000 ease-in-out"
+        style={{
+          height: "70vh",
+          backgroundImage: backgroundImages.length > 0
+            ? `url('${backgroundImages[currentBgImage]}')`
+            : "url('/wedding-couple.jpeg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        {/* Subtle overlay for better text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/30"></div>
+
+        <div className="relative z-10 h-full p-4 flex flex-col justify-between">
+          {/* Best Capture Tag - Positioned to avoid transparent navbar */}
+          <div className="flex justify-center pt-16">
+            <div className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-white/95 to-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/60">
+              <span className="text-3xl animate-pulse">✨</span>
+              <div className="flex flex-col">
+                <span className="text-gray-800 font-bold text-base leading-tight">Best Capture of the Moment</span>
+                <span className="text-gray-600 font-medium text-xs">A perfect memory from our celebration</span>
+              </div>
+              <span className="text-pink-500 animate-pulse text-2xl">💕</span>
+            </div>
+          </div>
+
+          {/* Center content area for errors */}
+          <div className="flex-1 flex flex-col justify-center px-4">
+            <ErrorMessage message={error} />
+          </div>
+
+          {/* Bottom spacing */}
+          <div className="pb-4"></div>
+        </div>
+      </div>
+
+      {/* Bottom 20% - Event Cards Row */}
+      <div className="h-[20vh] bg-gradient-to-r from-pink-50/80 via-orange-50/80 to-purple-50/80 backdrop-blur-sm flex flex-col items-center justify-center px-4 border-t border-white/30">
+        {/* Instruction Text */}
+        <div className="text-center mb-6">
+          <p className="text-gray-700 text-base font-semibold flex items-center justify-center gap-2 mb-1">
+            <span className="animate-bounce text-lg">👆</span> 
+            Choose an event to upload photos
+            <span className="animate-bounce text-lg">👇</span>
+          </p>
+          <p className="text-gray-600 text-sm">Tap any event circle below</p>
+        </div>
+        
+        <div className="flex gap-6 sm:gap-8 justify-center items-center max-w-4xl w-full">
           {events.map((event) => (
             <button
               key={event.id}
               onClick={() => selectEvent(event.id)}
-              className="bg-white/90 backdrop-blur-sm p-6 rounded-xl border-2 border-white/30 hover:shadow-lg transition-all duration-300 hover:scale-105 hover:bg-white/95"
+              className={`
+                flex flex-col items-center justify-center
+                w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20
+                rounded-full 
+                ${event.id === 'mehndi' ? 'bg-gradient-to-br from-orange-400 to-orange-600' : ''}
+                ${event.id === 'haldi' ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' : ''}
+                ${event.id === 'dj-night' ? 'bg-gradient-to-br from-purple-400 to-purple-600' : ''}
+                ${event.id === 'wedding' ? 'bg-gradient-to-br from-pink-400 to-pink-600' : ''}
+                text-white
+                shadow-lg active:shadow-md
+                transition-all duration-200 active:scale-95
+                border-3 border-white/70
+                relative
+                focus:ring-4 focus:ring-white/50 focus:outline-none
+                select-none
+                touch-manipulation
+                touch-feedback
+              `}
+              type="button"
+              style={{
+                animation: `gentle-pulse-${event.id} 3s ease-in-out infinite`
+              }}
             >
-              <div className="text-4xl mb-3">{event.icon}</div>
-              <h3 className="text-base font-semibold text-gray-800">
-                {event.name}
-              </h3>
+              <div className="text-xl sm:text-2xl md:text-3xl mb-1 filter drop-shadow-sm">{event.icon}</div>
             </button>
           ))}
         </div>
-
-        {/* Wishes Display Section */}
-        <div className="mt-8 bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-          <WishesDisplay refreshTrigger={wishesRefreshTrigger} />
-        </div>
-
-        {/* Wish Modal */}
-        <WishModal
-          isOpen={isWishModalOpen}
-          onClose={() => setIsWishModalOpen(false)}
-          onWishSubmitted={handleWishSubmitted}
-        />
-
-        {/* PWA Install Prompt - only show if not installed */}
-        {/* <PWAInstallPrompt /> */}
+        
+        {/* Event Labels Row */}
+        <div className="absolute bottom-2 left-0 right-0 flex gap-6 sm:gap-8 justify-center items-center max-w-4xl mx-auto px-4">
+          {events.map((event) => (
+            <div
+              key={`label-${event.id}`}
+              className="flex flex-col items-center w-16 sm:w-18 md:w-20"
+            >
+              <span className={`
+                text-xs sm:text-sm font-bold px-2 py-1 rounded-full text-center
+                ${event.id === 'mehndi' ? 'bg-orange-500/90 text-white' : ''}
+                ${event.id === 'haldi' ? 'bg-yellow-500/90 text-white' : ''}
+                ${event.id === 'dj-night' ? 'bg-purple-500/90 text-white' : ''}
+                ${event.id === 'wedding' ? 'bg-pink-500/90 text-white' : ''}
+                shadow-md backdrop-blur-sm border border-white/30
+                whitespace-nowrap
+              `}>
+                {event.name}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

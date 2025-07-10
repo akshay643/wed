@@ -17,7 +17,10 @@ export default async function handler(req, res) {
 
     // Get the actual user's User-Agent from the request, with fallbacks
     const userAgent = req.headers['user-agent'] ||
-    ˝
+      'Mozilla/5.0 (compatible; WeddingApp/1.0)';
+
+    // Get other relevant headers from the original request
+    const acceptHeader = req.headers['accept'] || 'image/*,*/*;q=0.8';
     const acceptLanguage = req.headers['accept-language'] || 'en-US,en;q=0.9';
 
     // Fetch the image from Google Drive using the actual user's headers
