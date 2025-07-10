@@ -135,7 +135,7 @@ const LoginPage = () => {
       >
 
         {/* Overlay */}
-        <div className="absolute inset-0 bg-black/30"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/30 to-black/50 backdrop-blur-[1px]"></div>
 
         {/* Image indicators */}
         {weddingImages.length > 1 && (
@@ -144,10 +144,10 @@ const LoginPage = () => {
               <button
                 key={index}
                 onClick={() => setCurrentImageIndex(index)}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                className={`w-3 h-3 rounded-full transition-all duration-300 backdrop-blur-sm border border-white/30 ${
                   index === currentImageIndex
-                    ? 'bg-white scale-125'
-                    : 'bg-white/50 hover:bg-white/75'
+                    ? 'bg-white/90 scale-125 shadow-lg'
+                    : 'bg-white/30 hover:bg-white/50'
                 }`}
                 aria-label={`Switch to image ${index + 1}`}
               />
@@ -157,7 +157,7 @@ const LoginPage = () => {
 
         {/* Image counter */}
         {weddingImages.length > 1 && (
-          <div className="absolute bottom-4 right-4 z-20 bg-black/50 text-white px-3 py-1 rounded-full text-sm backdrop-blur-sm">
+          <div className="absolute bottom-4 right-4 z-20 bg-black/30 backdrop-blur-md text-white px-3 py-1 rounded-full text-sm border border-white/20">
             {currentImageIndex + 1} / {weddingImages.length}
           </div>
         )}
@@ -189,14 +189,14 @@ const LoginPage = () => {
             </div>
 
             {/* Login Form Card */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border border-white/20">
+            <div className="bg-white/10 backdrop-blur-md rounded-3xl shadow-2xl p-6 border border-white/30 ring-1 ring-white/20">
             {step === 1 ? (
               /* Step 1: Name Form */
               <form onSubmit={handleNameSubmit} className="space-y-4">
                 <div>
                   <label
                     htmlFor="name"
-                    className="block text-sm font-medium text-gray-700 mb-2"
+                    className="block text-sm font-medium text-white/90 mb-2 drop-shadow-sm"
                   >
                     Welcome to our first class wedding celebration! Please share your name
                     with us
@@ -207,20 +207,20 @@ const LoginPage = () => {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Enter your name"
-                    className="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none transition-all text-base bg-white/80"
+                    className="w-full px-3 py-3 border border-white/30 rounded-xl focus:ring-2 focus:ring-pink-400/50 focus:border-white/50 outline-none transition-all text-base bg-white/20 backdrop-blur-sm text-white placeholder-white/70"
                     required
                   />
                 </div>
 
                 {error && (
-                  <div className="text-red-600 text-sm text-center bg-red-50 p-2 rounded-xl">
+                  <div className="text-red-100 text-sm text-center bg-red-500/20 backdrop-blur-sm p-2 rounded-xl border border-red-300/30">
                     {error}
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white py-3 px-4 rounded-xl font-semibold text-base hover:from-pink-600 hover:to-rose-700 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 shadow-lg"
+                  className="w-full bg-gradient-to-r from-pink-500/80 to-rose-600/80 backdrop-blur-sm text-white py-3 px-4 rounded-xl font-semibold text-base hover:from-pink-600/80 hover:to-rose-700/80 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-pink-400/50 focus:ring-offset-2 shadow-lg border border-white/20"
                 >
                   Let's Go!
                 </button>
@@ -229,10 +229,10 @@ const LoginPage = () => {
               /* Step 2: Passcode Form */
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="text-center mb-4">
-                  <h3 className="text-xl font-semibold text-gray-800 mb-1">
+                  <h3 className="text-xl font-semibold text-white mb-1 drop-shadow-sm">
                     Welcome, {name}! 👋
                   </h3>
-                  <p className="text-gray-600 text-sm">
+                  <p className="text-white/80 text-sm drop-shadow-sm">
                     Enter the passcode to access our photo collection
                   </p>
                 </div>
@@ -240,7 +240,7 @@ const LoginPage = () => {
                 <div>
                   <label
                     htmlFor="passcode"
-                    className="block text-sm font-medium text-gray-700 mb-2"
+                    className="block text-sm font-medium text-white/90 mb-2 drop-shadow-sm"
                   >
                     Passcode
                   </label>
@@ -250,13 +250,13 @@ const LoginPage = () => {
                     value={passcode}
                     onChange={(e) => setPasscode(e.target.value)}
                     placeholder="Enter passcode"
-                    className="w-full px-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none transition-all text-base bg-white/80 text-center tracking-widest"
+                    className="w-full px-3 py-3 border border-white/30 rounded-xl focus:ring-2 focus:ring-pink-400/50 focus:border-white/50 outline-none transition-all text-base bg-white/20 backdrop-blur-sm text-center tracking-widest text-white placeholder-white/70"
                     required
                   />
                 </div>
 
                 {error && (
-                  <div className="text-red-600 text-sm text-center bg-red-50 p-2 rounded-xl">
+                  <div className="text-red-100 text-sm text-center bg-red-500/20 backdrop-blur-sm p-2 rounded-xl border border-red-300/30">
                     {error}
                   </div>
                 )}
@@ -269,7 +269,7 @@ const LoginPage = () => {
                       setError("");
                       setPasscode("");
                     }}
-                    className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 text-sm"
+                    className="flex-1 bg-white/20 backdrop-blur-sm text-white py-3 px-4 rounded-xl font-semibold hover:bg-white/30 transition-all flex items-center justify-center gap-2 text-sm border border-white/30"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back
@@ -277,7 +277,7 @@ const LoginPage = () => {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="flex-1 bg-gradient-to-r from-pink-500 to-rose-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-pink-600 hover:to-rose-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                    className="flex-1 bg-gradient-to-r from-pink-500/80 to-rose-600/80 backdrop-blur-sm text-white py-3 px-4 rounded-xl font-semibold hover:from-pink-600/80 hover:to-rose-700/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm border border-white/20"
                   >
                     {isLoading ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
