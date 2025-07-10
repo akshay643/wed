@@ -107,6 +107,38 @@ body {
   }
 }
 
+/* Upload button hover animations */
+@keyframes upload-float {
+  0%, 100% { 
+    transform: translateY(0px);
+  }
+  50% { 
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes icon-glow {
+  0%, 100% { 
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+  }
+  50% { 
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.5), 0 0 30px rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* Enhanced glass card animations */
+@keyframes glass-shimmer {
+  0% { 
+    background: rgba(255, 255, 255, 0.15);
+  }
+  50% { 
+    background: rgba(255, 255, 255, 0.2);
+  }
+  100% { 
+    background: rgba(255, 255, 255, 0.15);
+  }
+}
+
 /* Custom utility classes */
 .animate-heartbeat {
   animation: heartbeat 1.5s ease-in-out infinite;
@@ -160,6 +192,52 @@ body {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+/* Glassmorphic effects */
+.glass-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.glass-card:active {
+  transform: translateY(0px) scale(0.98);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Enhanced glass effect for best capture tag */
+.glass-capture-tag {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.1), 
+              0 8px 16px rgba(0, 0, 0, 0.06);
+}
+
+/* Animated glassmorphic glow */
+@keyframes glass-glow {
+  0%, 100% {
+    box-shadow: 
+      0 8px 32px rgba(31, 38, 135, 0.37),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  50% {
+    box-shadow: 
+      0 12px 40px rgba(31, 38, 135, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
 }
 
 /* Mobile touch feedback */

@@ -54,6 +54,8 @@ const WeddingPhotoApp = () => {
   const [currentBgImage, setCurrentBgImage] = useState(0);
   const [backgroundImages, setBackgroundImages] = useState([]);
   const [lastImageUpdate, setLastImageUpdate] = useState(null);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   const fileInputRef = useRef(null);
   const cameraPhotoInputRef = useRef(null);
@@ -63,6 +65,9 @@ const WeddingPhotoApp = () => {
   useEffect(() => {
     const loadBackgroundImages = async () => {
       try {
+        setImageLoading(true);
+        setImageError(false);
+
         // Check if we have cached background images in localStorage
         const cachedImages = localStorage.getItem('wedding-bg-images');
         const cacheTimestamp = localStorage.getItem('wedding-bg-images-timestamp');
@@ -74,9 +79,10 @@ const WeddingPhotoApp = () => {
           console.log('Using cached background images');
           const parsedImages = JSON.parse(cachedImages);
           setBackgroundImages(parsedImages);
+          setImageLoading(false);
 
           // Preload cached images
-          parsedImages.forEach(imageUrl => {
+          parsedImages.slice(0, 3).forEach(imageUrl => {
             const img = new Image();
             img.src = imageUrl;
           });
@@ -95,8 +101,8 @@ const WeddingPhotoApp = () => {
               .filter(img => !img.isVideo) // Only use images for background, not videos
               .map(img => {
                 if (img.id) {
-                  // Use our image proxy endpoint to serve Google Drive images
-                  return `/api/image-proxy?id=${img.id}`;
+                  // Use optimized background size for faster loading
+                  return `/api/image-proxy?id=${img.id}&quality=background&width=1200&height=900`;
                 }
                 return null;
               }).filter(Boolean); // Remove any null URLs
@@ -104,18 +110,29 @@ const WeddingPhotoApp = () => {
             if (allImages.length > 0) {
               console.log(`Loaded ${allImages.length} background images from Drive (filtered out ${data.images.length - allImages.length} videos)`);
               setBackgroundImages(allImages);
+              setImageLoading(false);
 
               // Cache the images in localStorage
               localStorage.setItem('wedding-bg-images', JSON.stringify(allImages));
               localStorage.setItem('wedding-bg-images-timestamp', now.toString());
 
-              // Preload images for faster loading
-              allImages.forEach(imageUrl => {
+              // Preload images for faster loading with priority loading
+              allImages.slice(0, 3).forEach((imageUrl, index) => {
                 const img = new Image();
                 img.src = imageUrl;
-                img.onload = () => console.log(`Cached image: ${imageUrl}`);
-                img.onerror = () => console.warn(`Failed to load image: ${imageUrl}`);
+                img.onload = () => console.log(`Priority cached image ${index + 1}: ${imageUrl}`);
+                img.onerror = () => console.warn(`Failed to load priority image ${index + 1}: ${imageUrl}`);
               });
+
+              // Load remaining images with lower priority
+              setTimeout(() => {
+                allImages.slice(3).forEach((imageUrl, index) => {
+                  const img = new Image();
+                  img.src = imageUrl;
+                  img.onload = () => console.log(`Background cached image ${index + 4}: ${imageUrl}`);
+                  img.onerror = () => console.warn(`Failed to load background image ${index + 4}: ${imageUrl}`);
+                });
+              }, 1000);
             } else {
               throw new Error('No valid image IDs found');
             }
@@ -127,6 +144,8 @@ const WeddingPhotoApp = () => {
         }
       } catch (error) {
         console.log('Failed to load background images from Drive, using defaults:', error);
+        setImageError(true);
+        setImageLoading(false);
 
         // Fallback to default images
         const defaultImages = [
@@ -230,7 +249,7 @@ const WeddingPhotoApp = () => {
     if (navigator.vibrate) {
       navigator.vibrate(50); // Short vibration
     }
-    
+
     setSelectedEvent(eventId);
     setCurrentPage("upload-options");
     setError("");
@@ -425,10 +444,10 @@ const WeddingPhotoApp = () => {
 
   const ErrorMessage = ({ message }) =>
     message ? (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+      <div className="glass-card border border-red-300/50 rounded-xl p-4 mb-6">
         <div className="flex items-center">
-          <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-          <p className="text-red-700">{message}</p>
+          <AlertCircle className="w-5 h-5 text-red-300 mr-2" />
+          <p className="text-white font-medium">{message}</p>
         </div>
       </div>
     ) : null;
@@ -485,27 +504,56 @@ const WeddingPhotoApp = () => {
         className="relative overflow-hidden transition-all duration-1000 ease-in-out"
         style={{
           height: "70vh",
-          backgroundImage: backgroundImages.length > 0
-            ? `url('${backgroundImages[currentBgImage]}')`
-            : "url('/wedding-couple.jpeg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
         }}
       >
-        {/* Subtle overlay for better text readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/30"></div>
+        {/* Loading State */}
+        {imageLoading && (
+          <div className="absolute inset-0 bg-gradient-to-br from-pink-100 via-orange-100 to-purple-100 flex items-center justify-center">
+            <div className="text-center">
+              <WeddingLoader type="rings" size="large" />
+              <p className="text-gray-600 mt-4 font-medium">Loading beautiful moments...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Background Image */}
+        <div
+          className={`absolute inset-0 transition-all duration-1000 ease-in-out ${
+            imageLoading ? 'opacity-0' : 'opacity-100'
+          }`}
+          style={{
+            backgroundImage: backgroundImages.length > 0
+              ? `url('${backgroundImages[currentBgImage]}')`
+              : "url('/wedding-couple.jpeg')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            filter: imageLoading ? 'blur(10px)' : 'none',
+          }}
+        >
+          {/* Subtle overlay for better text readability */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/30"></div>
+        </div>
 
         <div className="relative z-10 h-full p-4 flex flex-col justify-between">
-          {/* Best Capture Tag - Positioned to avoid transparent navbar */}
-          <div className="flex justify-center pt-16">
-            <div className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-white/95 to-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/60">
-              <span className="text-3xl animate-pulse">✨</span>
-              <div className="flex flex-col">
-                <span className="text-gray-800 font-bold text-base leading-tight">Best Capture of the Moment</span>
-                <span className="text-gray-600 font-medium text-xs">A perfect memory from our celebration</span>
+          {/* Best Capture Tag - Positioned to avoid transparent navbar */}          <div className="flex justify-center pt-16">
+            <div className="relative inline-flex items-center gap-3 px-8 py-4 glass-gradient-card rounded-2xl transition-all duration-300 hover:scale-105" style={{ animation: 'glass-glow 4s ease-in-out infinite' }}>
+              {/* Additional glassmorphic layers */}
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-pink-500/10 rounded-2xl opacity-60"></div>
+              <div className="absolute inset-0 bg-gradient-to-tl from-purple-500/10 via-transparent to-white/10 rounded-2xl opacity-40"></div>
+
+              {/* Content */}
+              <div className="relative z-10 flex items-center gap-3">
+                <span className="text-3xl animate-pulse drop-shadow-lg filter brightness-110">✨</span>
+                <div className="flex flex-col">
+                  <span className="text-white font-bold text-base leading-tight drop-shadow-lg filter brightness-110">Best Capture of the Moment</span>
+                  <span className="text-white/95 font-medium text-xs drop-shadow-md">A perfect memory from our celebration</span>
+                </div>
+                <span className="text-pink-200 animate-pulse text-2xl drop-shadow-lg filter brightness-110">💕</span>
               </div>
-              <span className="text-pink-500 animate-pulse text-2xl">💕</span>
+
+              {/* Subtle shimmer effect */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 animate-pulse"></div>
             </div>
           </div>
 
@@ -524,13 +572,13 @@ const WeddingPhotoApp = () => {
         {/* Instruction Text */}
         <div className="text-center mb-6">
           <p className="text-gray-700 text-base font-semibold flex items-center justify-center gap-2 mb-1">
-            <span className="animate-bounce text-lg">👆</span> 
+            <span className="animate-bounce text-lg">👆</span>
             Choose an event to upload photos
             <span className="animate-bounce text-lg">👇</span>
           </p>
           <p className="text-gray-600 text-sm">Tap any event circle below</p>
         </div>
-        
+
         <div className="flex gap-6 sm:gap-8 justify-center items-center max-w-4xl w-full">
           {events.map((event) => (
             <button
@@ -539,7 +587,7 @@ const WeddingPhotoApp = () => {
               className={`
                 flex flex-col items-center justify-center
                 w-16 h-16 sm:w-18 sm:h-18 md:w-20 md:h-20
-                rounded-full 
+                rounded-full
                 ${event.id === 'mehndi' ? 'bg-gradient-to-br from-orange-400 to-orange-600' : ''}
                 ${event.id === 'haldi' ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' : ''}
                 ${event.id === 'dj-night' ? 'bg-gradient-to-br from-purple-400 to-purple-600' : ''}
@@ -563,7 +611,7 @@ const WeddingPhotoApp = () => {
             </button>
           ))}
         </div>
-        
+
         {/* Event Labels Row */}
         <div className="absolute bottom-2 left-0 right-0 flex gap-6 sm:gap-8 justify-center items-center max-w-4xl mx-auto px-4">
           {events.map((event) => (
@@ -590,121 +638,150 @@ const WeddingPhotoApp = () => {
   );
 
   const renderUploadOptions = () => (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-orange-50 p-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center mb-6 pt-8">
-          <button
-            onClick={() => setCurrentPage("events")}
-            className="mr-4 p-2 rounded-full hover:bg-white/50"
-          >
-            <ArrowLeft className="w-6 h-6 text-gray-600" />
-          </button>
-          <h2 className="text-2xl font-bold text-gray-800">
-            {events.find((e) => e.id === selectedEvent)?.name} Memories
-          </h2>
-        </div>
+    <div
+      className="min-h-screen relative overflow-hidden"
+      style={{
+        backgroundImage: backgroundImages.length > 0
+          ? `url('${backgroundImages[currentBgImage]}')`
+          : "url('/wedding-couple.jpeg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {/* Background overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-black/20 to-black/40"></div>
 
-        <ErrorMessage message={error} />
+      <div className="relative z-10 min-h-screen p-6">
+        <div className="max-w-lg mx-auto">
+          {/* Header */}
+          <div className="flex items-center mb-8 pt-8">
+            <button
+              onClick={() => setCurrentPage("events")}
+              className="mr-4 p-3 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 transition-all duration-200 active:scale-95"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <h2 className="text-2xl font-bold text-white drop-shadow-lg">
+              {events.find((e) => e.id === selectedEvent)?.name} Memories
+            </h2>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              console.log("Gallery button clicked");
-              if (fileInputRef.current) {
-                fileInputRef.current.click();
-              }
-            }}
-            className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 border-orange-100 touch-manipulation"
-          >
-            <Upload className="w-10 h-10 text-orange-500 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-              Upload Media
-            </h3>
-            <p className="text-gray-600 text-sm">Photos & Videos</p>
-            <p className="text-gray-500 text-xs mt-1">
-              Max 50 files, 2GB each
-            </p>
-          </button>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              console.log("Camera Photo button clicked");
-              if (cameraPhotoInputRef.current) {
-                cameraPhotoInputRef.current.click();
-              }
-            }}
-            className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 border-pink-100 touch-manipulation"
-          >
-            <Camera className="w-10 h-10 text-pink-500 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-              Take Photo
-            </h3>
-            <p className="text-gray-600 text-sm">
-              Camera - Photo Mode
-            </p>
-            <p className="text-gray-500 text-xs mt-1">Original quality</p>
-          </button>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              console.log("Camera Video button clicked");
-              if (cameraVideoInputRef.current) {
-                cameraVideoInputRef.current.click();
-              }
-            }}
-            className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 border-purple-100 touch-manipulation"
-          >
-            <div className="relative mx-auto mb-3 w-10 h-10 flex items-center justify-center">
-              <Camera className="w-10 h-10 text-purple-500" />
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                <div className="w-2 h-2 bg-white rounded-full"></div>
+          <ErrorMessage message={error} />
+
+          {/* Glassmorphic Upload Options - Compact Grid */}
+          <div className="grid grid-cols-1 gap-4 mb-6">
+            {/* Upload Media */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                console.log("Gallery button clicked");
+                if (fileInputRef.current) {
+                  fileInputRef.current.click();
+                }
+              }}
+              className="glass-card p-4 rounded-xl transition-all duration-300 active:scale-95 touch-manipulation group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="upload-icon flex-shrink-0 w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center">
+                  <Upload className="w-6 h-6 text-orange-300" />
+                </div>
+                <div className="flex-1 text-left">
+                  <h3 className="text-lg font-semibold text-white mb-1">
+                    Upload Media
+                  </h3>
+                  <p className="text-white/80 text-sm">Photos & Videos from gallery</p>
+                  <p className="text-white/60 text-xs mt-1">Max 50 files, 2GB each</p>
+                </div>
               </div>
+            </button>
+
+            {/* Take Photo & Take Video in one row */}
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  console.log("Camera Photo button clicked");
+                  if (cameraPhotoInputRef.current) {
+                    cameraPhotoInputRef.current.click();
+                  }
+                }}
+                className="glass-card p-4 rounded-xl transition-all duration-300 active:scale-95 touch-manipulation group"
+              >
+                <div className="text-center">
+                  <div className="upload-icon w-12 h-12 bg-pink-500/20 rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <Camera className="w-6 h-6 text-pink-300" />
+                  </div>
+                  <h3 className="text-base font-semibold text-white mb-1">
+                    Take Photo
+                  </h3>
+                  <p className="text-white/80 text-xs">Camera</p>
+                  <p className="text-white/60 text-xs">Original quality</p>
+                </div>
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  console.log("Camera Video button clicked");
+                  if (cameraVideoInputRef.current) {
+                    cameraVideoInputRef.current.click();
+                  }
+                }}
+                className="glass-card p-4 rounded-xl transition-all duration-300 active:scale-95 touch-manipulation group"
+              >
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mx-auto mb-3 relative">
+                    <Camera className="w-6 h-6 text-purple-300" />
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                    </div>
+                  </div>
+                  <h3 className="text-base font-semibold text-white mb-1">
+                    Take Video
+                  </h3>
+                  <p className="text-white/80 text-xs">Camera</p>
+                  <p className="text-white/60 text-xs">HD quality</p>
+                </div>
+              </button>
             </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-              Take Video
-            </h3>
-            <p className="text-gray-600 text-sm">
-              Camera - Video Mode
-            </p>
-            <p className="text-gray-500 text-xs mt-1">No compression</p>
-          </button>
+          </div>
+
+          {/* Camera Photo input - opens camera in photo mode */}
+          <input
+            ref={cameraPhotoInputRef}
+            type="file"
+            accept="image/*,image/heic,image/heif"
+            capture="environment"
+            onChange={handleFileUpload}
+            className="hidden"
+            multiple={false}
+            style={{ display: "none" }}
+          />
+
+          {/* Camera Video input - opens camera in video mode */}
+          <input
+            ref={cameraVideoInputRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            onChange={handleFileUpload}
+            className="hidden"
+            multiple={false}
+            style={{ display: "none" }}
+          />
+
+          {/* Gallery input for file selection - supports multiple files */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,image/heic,image/heif,video/*"
+            onChange={handleFileUpload}
+            className="hidden"
+            multiple={true}
+            style={{ display: "none" }}
+          />
         </div>
-
-        {/* Camera Photo input - opens camera in photo mode */}
-        <input
-          ref={cameraPhotoInputRef}
-          type="file"
-          accept="image/*,image/heic,image/heif"
-          capture="environment"
-          onChange={handleFileUpload}
-          className="hidden"
-          multiple={false}
-          style={{ display: "none" }}
-        />
-
-        {/* Camera Video input - opens camera in video mode */}
-        <input
-          ref={cameraVideoInputRef}
-          type="file"
-          accept="video/*"
-          capture="environment"
-          onChange={handleFileUpload}
-          className="hidden"
-          multiple={false}
-          style={{ display: "none" }}
-        />
-
-        {/* Gallery input for file selection - supports multiple files */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,image/heic,image/heif,video/*"
-          onChange={handleFileUpload}
-          className="hidden"
-          multiple={true}
-          style={{ display: "none" }}
-        />
       </div>
     </div>
   );

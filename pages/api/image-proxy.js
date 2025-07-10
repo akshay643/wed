@@ -3,15 +3,28 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { id } = req.query;
+  const { id, width, height, quality = 'medium', format } = req.query;
 
   if (!id) {
     return res.status(400).json({ error: 'Image ID is required' });
   }
 
   try {
-    // Google Drive direct download URL
-    const driveUrl = `https://drive.google.com/uc?export=view&id=${id}`;
+    // Google Drive direct download URL with size optimization
+    let driveUrl = `https://drive.google.com/uc?export=view&id=${id}`;
+    
+    // Add size parameters for optimization
+    if (width && height) {
+      // For thumbnails and previews, use smaller sizes
+      if (quality === 'thumbnail') {
+        driveUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w400-h300`;
+      } else if (quality === 'preview') {
+        driveUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w800-h600`;
+      } else if (quality === 'background') {
+        driveUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w1200-h900`;
+      }
+      // For 'high' quality or download, use original URL
+    }
 
     console.log(`Proxying image request for ID: ${id}`);
 
@@ -19,8 +32,12 @@ export default async function handler(req, res) {
     const userAgent = req.headers['user-agent'] ||
       'Mozilla/5.0 (compatible; WeddingApp/1.0)';
 
-    // Get other relevant headers from the original request
+    // Check if client supports modern formats
     const acceptHeader = req.headers['accept'] || 'image/*,*/*;q=0.8';
+    const supportsWebP = acceptHeader.includes('image/webp');
+    const supportsAVIF = acceptHeader.includes('image/avif');
+
+    // Get other relevant headers from the original request
     const acceptLanguage = req.headers['accept-language'] || 'en-US,en;q=0.9';
 
     // Fetch the image from Google Drive using the actual user's headers
@@ -52,10 +69,23 @@ export default async function handler(req, res) {
 
     // Set appropriate headers for caching and content type
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600'); // Cache for 1 hour
+    
+    // Aggressive caching for images
+    if (quality === 'thumbnail' || quality === 'preview') {
+      res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400'); // Cache for 24 hours
+    } else if (quality === 'background') {
+      res.setHeader('Cache-Control', 'public, max-age=43200, s-maxage=43200'); // Cache for 12 hours
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600'); // Cache for 1 hour
+    }
+    
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Add compression hints
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
 
     // Stream the image data directly to the response
     const arrayBuffer = await response.arrayBuffer();

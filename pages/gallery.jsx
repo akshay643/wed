@@ -356,18 +356,29 @@ const Gallery = () => {
 
   const openCarousel = (imageIndex) => {
     setCurrentImageIndex(imageIndex);
-    setPreviewImg(images[imageIndex].fullUrl || images[imageIndex].webContentLink || images[imageIndex].url);
+    // Use preview quality for modal view - faster loading than full size
+    const previewUrl = images[imageIndex].isVideo 
+      ? (images[imageIndex].fullUrl || images[imageIndex].webContentLink || images[imageIndex].url)
+      : `/api/image-proxy?id=${images[imageIndex].id}&quality=preview&width=800&height=600`;
+    setPreviewImg(previewUrl);
   };
 
   const nextImage = () => {
     const nextIndex = (currentImageIndex + 1) % images.length;
     setCurrentImageIndex(nextIndex);
-    setPreviewImg(images[nextIndex].fullUrl || images[nextIndex].webContentLink || images[nextIndex].url);
+    const previewUrl = images[nextIndex].isVideo 
+      ? (images[nextIndex].fullUrl || images[nextIndex].webContentLink || images[nextIndex].url)
+      : `/api/image-proxy?id=${images[nextIndex].id}&quality=preview&width=800&height=600`;
+    setPreviewImg(previewUrl);
   };
 
   const prevImage = () => {
     const prevIndex = currentImageIndex === 0 ? images.length - 1 : currentImageIndex - 1;
     setCurrentImageIndex(prevIndex);
+    const previewUrl = images[prevIndex].isVideo 
+      ? (images[prevIndex].fullUrl || images[prevIndex].webContentLink || images[prevIndex].url)
+      : `/api/image-proxy?id=${images[prevIndex].id}&quality=preview&width=800&height=600`;
+    setPreviewImg(previewUrl);
     setPreviewImg(images[prevIndex].fullUrl || images[prevIndex].webContentLink || images[prevIndex].url);
   };
 
@@ -559,7 +570,7 @@ const Gallery = () => {
                       <div className="relative w-full h-full">
                         {/* Try thumbnail first */}
                         <img
-                          src={img.url}
+                          src={`/api/image-proxy?id=${img.id}&quality=thumbnail&width=400&height=400`}
                           alt={img.name}
                           className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
                           loading="lazy"
@@ -626,7 +637,7 @@ const Gallery = () => {
                       </div>
                     ) : (
                       <img
-                        src={img.url}
+                        src={`/api/image-proxy?id=${img.id}&quality=thumbnail&width=400&height=400`}
                         alt={img.name}
                         className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
                         loading="lazy"
