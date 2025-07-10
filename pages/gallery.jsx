@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Heart,
   Download,
@@ -12,7 +12,9 @@ import {
   LogOut,
   MessageCircle,
   Home,
-  Play
+  Play,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import withAuth from '../components/withAuth';
@@ -36,66 +38,104 @@ const fetchGalleryImages = async (event) => {
   return res.json();
 };
 
-// Video thumbnail component with fallback
-const VideoThumbnail = ({ src, videoSrc, alt, className }) => {
-  const [thumbnailError, setThumbnailError] = useState(false);
-  const [useVideoFrame, setUseVideoFrame] = useState(false);
-  const videoRef = useRef(null);
+// Connection speed detection
+const detectConnectionSpeed = () => {
+  if (typeof navigator !== 'undefined' && 'connection' in navigator) {
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (connection) {
+      if (connection.effectiveType === '4g' && connection.downlink > 10) return 'fast';
+      if (connection.effectiveType === '4g' || connection.effectiveType === '3g') return 'medium';
+      return 'slow';
+    }
+  }
+  return 'medium'; // Default fallback
+};
 
-  const handleThumbnailError = () => {
-    console.log('Thumbnail failed, trying video frame extraction');
-    setThumbnailError(true);
-    setUseVideoFrame(true);
-  };
+// Enhanced image preloader with priority queue
 
-  const handleVideoLoaded = () => {
-    if (videoRef.current && useVideoFrame) {
-      // Seek to 1 second to get a frame
-      videoRef.current.currentTime = 1;
+
+// Optimized video thumbnail component
+const VideoThumbnail = ({ src, videoSrc, alt, className, onLoad, onError }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(src);
+  const imgRef = useRef(null);
+
+  useEffect(() => {
+    if (!src) {
+      setError(true);
+      setIsLoading(false);
+      return;
+    }
+
+    // Reset state when src changes
+    setError(false);
+    setIsLoading(true);
+    setCurrentSrc(src);
+  }, [src]);
+
+  const handleImageError = () => {
+    if (currentSrc === src && videoSrc) {
+      // Try direct video URL as fallback
+      setCurrentSrc(videoSrc);
+      setIsLoading(true);
+    } else {
+      // Final fallback to placeholder
+      setError(true);
+      setIsLoading(false);
+      onError?.();
     }
   };
 
-  const handleVideoError = () => {
-    console.log('Video frame extraction failed, using fallback');
-    setUseVideoFrame(false);
+  const handleImageLoad = () => {
+    setIsLoading(false);
+    onLoad?.();
   };
 
-  if (useVideoFrame && !thumbnailError) {
+  if (error) {
     return (
-      <video
-        ref={videoRef}
-        src={videoSrc}
-        className={className}
-        muted
-        playsInline
-        preload="metadata"
-        onLoadedData={handleVideoLoaded}
-        onError={handleVideoError}
-        style={{ pointerEvents: 'none' }}
-      />
-    );
-  }
-
-  if (thumbnailError && !useVideoFrame) {
-    // Fallback to a generic video placeholder
-    return (
-      <div className={`${className} bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center`}>
+      <div className={`${className} bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center relative`}>
         <div className="text-center text-white">
           <Play className="w-12 h-12 mx-auto mb-2 opacity-70" fill="currentColor" />
           <div className="text-xs opacity-70">Video</div>
+        </div>
+        {/* Video Play Icon Overlay */}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+          <div className="w-16 h-16 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm">
+            <Play className="w-8 h-8 text-white ml-1" fill="currentColor" />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      loading="lazy"
-      onError={handleThumbnailError}
-    />
+    <div className={`${className} relative`}>
+      {isLoading && (
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 animate-pulse flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      )}
+      <img
+        ref={imgRef}
+        src={currentSrc}
+        alt={alt}
+        className={`w-full h-full object-cover transition-opacity duration-200 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+        loading="lazy"
+        onLoad={handleImageLoad}
+        onError={handleImageError}
+      />
+      {/* Video Play Icon Overlay */}
+      <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+        <div className="w-16 h-16 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm">
+          <Play className="w-8 h-8 text-white ml-1" fill="currentColor" />
+        </div>
+      </div>
+      {/* Video Duration Badge */}
+      <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm pointer-events-none">
+        🎥 Video
+      </div>
+    </div>
   );
 };
 
@@ -103,6 +143,8 @@ const Gallery = () => {
   const [images, setImages] = useState([]);
   const [filter, setFilter] = useState("all");
   const [previewImg, setPreviewImg] = useState(null);
+  const [previewImgHD, setPreviewImgHD] = useState(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [selectedImages, setSelectedImages] = useState(new Set());
@@ -114,6 +156,84 @@ const Gallery = () => {
   });
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
+  const [connectionSpeed, setConnectionSpeed] = useState('medium');
+  const [previewCache, setPreviewCache] = useState(new Map());
+
+  // Detect connection speed on mount
+  useEffect(() => {
+    setConnectionSpeed(detectConnectionSpeed());
+  }, []);
+
+  // Aggressive preloading for visible images
+  const preloadVisibleImages = useCallback((imageList) => {
+    // Simple preloading for first few images using authenticated API
+    const preloadCount = connectionSpeed === 'fast' ? 4 : 2;
+
+    imageList.slice(0, preloadCount).forEach((img) => {
+      if (!img.isVideo) {
+        const imageUrl = `/api/image?fileId=${img.id}`;
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = imageUrl;
+        document.head.appendChild(link);
+      }
+    });
+  }, [connectionSpeed]);
+
+  // Preload adjacent images in preview mode
+  const preloadAdjacentPreviews = useCallback((currentIndex) => {
+    const preloadIndexes = [
+      currentIndex - 1,
+      currentIndex + 1
+    ].filter(i => i >= 0 && i < images.length);
+
+    preloadIndexes.forEach(index => {
+      const img = images[index];
+      if (img && !img.isVideo) {
+        const imageUrl = `/api/image?fileId=${img.id}`;
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = imageUrl;
+        document.head.appendChild(link);
+      }
+    });
+  }, [images]);
+
+  const fetchImages = async (event) => {
+    setLoading(true);
+    try {
+      const response = await fetchGalleryImages(event);
+      console.log('Gallery API response:', response); // Debug log
+
+      // Handle the API response structure
+      const imageList = response.images || response || [];
+      const processedImages = Array.isArray(imageList) ? imageList.filter(img => img && img.id) : [];
+
+      console.log('Processed images:', processedImages.length); // Debug log
+      setImages(processedImages);
+
+      // Start aggressive preloading
+      if (processedImages.length > 0) {
+        preloadVisibleImages(processedImages);
+      }
+    } catch (error) {
+      console.error("Error fetching images:", error);
+      setImages([]); // Set empty array on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchImages(filter);
+  }, [filter]);
+
+  // Preload when images change
+  useEffect(() => {
+    if (images.length > 0) {
+      preloadVisibleImages(images);
+    }
+  }, [images, preloadVisibleImages]);
 
   // Logout function
   const handleLogout = async () => {
@@ -150,20 +270,11 @@ const Gallery = () => {
     }
   };
 
-  useEffect(() => {
-    setLoading(true);
-    fetchGalleryImages(filter).then((data) => {
-      setImages(data.images || []);
-      setLoading(false);
-      setSelectedImages(new Set()); // Clear selection when filter changes
-    });
-  }, [filter]);
-
   // Keyboard navigation for carousel
   useEffect(() => {
     const handleKeyPress = (e) => {
       if (!previewImg) return;
-      
+
       switch (e.key) {
         case 'ArrowLeft':
           e.preventDefault();
@@ -220,45 +331,45 @@ const Gallery = () => {
 
       // Use our download API endpoint
       const downloadUrl = `/api/download?fileId=${img.id}&fileName=${encodeURIComponent(img.name || 'wedding-photo.jpg')}`;
-      
+
       // Create a temporary link to trigger download
       const a = document.createElement("a");
       a.style.display = "none";
       a.href = downloadUrl;
       a.download = img.name || "wedding-photo.jpg";
-      
+
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
+
       // Remove loading toast
       setTimeout(() => {
         if (document.body.contains(loadingToast)) {
           document.body.removeChild(loadingToast);
         }
       }, 2000);
-      
+
     } catch (error) {
       console.error("Download failed:", error);
-      
+
       // Remove any loading toast
       const loadingToast = document.querySelector('.fixed.top-4.right-4');
       if (loadingToast) {
         document.body.removeChild(loadingToast);
       }
-      
+
       // Show error message
       const errorToast = document.createElement('div');
       errorToast.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
       errorToast.textContent = 'Download failed. Please try again.';
       document.body.appendChild(errorToast);
-      
+
       setTimeout(() => {
         if (document.body.contains(errorToast)) {
           document.body.removeChild(errorToast);
         }
       }, 3000);
-      
+
       // Fallback: try the original Google Drive link
       const fallbackUrl = img.webContentLink || img.webViewLink || `https://drive.google.com/uc?export=download&id=${img.id}`;
       const newWindow = window.open(fallbackUrl, '_blank');
@@ -298,19 +409,19 @@ const Gallery = () => {
         if (i > 0) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-        
+
         // Use our download API for each file
         const downloadUrl = `/api/download?fileId=${img.id}&fileName=${encodeURIComponent(img.name || `wedding-photo-${i + 1}.jpg`)}`;
-        
+
         const a = document.createElement("a");
         a.style.display = "none";
         a.href = downloadUrl;
         a.download = img.name || `wedding-photo-${i + 1}.jpg`;
-        
+
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        
+
       } catch (error) {
         console.error(`Failed to download ${img.name}:`, error);
       }
@@ -341,9 +452,9 @@ const Gallery = () => {
   const handleShare = async (img) => {
     // Use high-quality URL for sharing instead of thumbnail
     const shareUrl = img.webViewLink || img.webContentLink || img.url;
-    
+
     if (navigator.share) {
-      await navigator.share({ 
+      await navigator.share({
         url: shareUrl,
         title: `Wedding Photo - ${img.name}`,
         text: "Check out this beautiful wedding photo!"
@@ -356,30 +467,34 @@ const Gallery = () => {
 
   const openCarousel = (imageIndex) => {
     setCurrentImageIndex(imageIndex);
-    // Use preview quality for modal view - faster loading than full size
-    const previewUrl = images[imageIndex].isVideo 
-      ? (images[imageIndex].fullUrl || images[imageIndex].webContentLink || images[imageIndex].url)
-      : `/api/image-proxy?id=${images[imageIndex].id}&quality=preview&width=800&height=600`;
-    setPreviewImg(previewUrl);
+    setIsPreviewLoading(false);
+    setPreviewImgHD(null);
+
+    const currentImage = images[imageIndex];
+
+    // Use the authenticated API for both images and videos to avoid 403 errors
+    const mediaUrl = currentImage.fullUrl; // This is `/api/image?fileId=${id}` from gallery API
+    setPreviewImg(mediaUrl);
   };
 
   const nextImage = () => {
     const nextIndex = (currentImageIndex + 1) % images.length;
-    setCurrentImageIndex(nextIndex);
-    const previewUrl = images[nextIndex].isVideo 
-      ? (images[nextIndex].fullUrl || images[nextIndex].webContentLink || images[nextIndex].url)
-      : `/api/image-proxy?id=${images[nextIndex].id}&quality=preview&width=800&height=600`;
-    setPreviewImg(previewUrl);
+    navigateToImage(nextIndex);
   };
 
   const prevImage = () => {
     const prevIndex = currentImageIndex === 0 ? images.length - 1 : currentImageIndex - 1;
-    setCurrentImageIndex(prevIndex);
-    const previewUrl = images[prevIndex].isVideo 
-      ? (images[prevIndex].fullUrl || images[prevIndex].webContentLink || images[prevIndex].url)
-      : `/api/image-proxy?id=${images[prevIndex].id}&quality=preview&width=800&height=600`;
-    setPreviewImg(previewUrl);
-    setPreviewImg(images[prevIndex].fullUrl || images[prevIndex].webContentLink || images[prevIndex].url);
+    navigateToImage(prevIndex);
+  };
+
+  const navigateToImage = (index) => {
+    setCurrentImageIndex(index);
+    const currentImage = images[index];
+
+    // Use the authenticated API for both images and videos
+    const mediaUrl = currentImage.fullUrl; // This is `/api/image?fileId=${id}` from gallery API
+    setPreviewImg(mediaUrl);
+    setIsPreviewLoading(false);
   };
 
   const closeCarousel = () => {
@@ -400,12 +515,12 @@ const Gallery = () => {
               <ArrowLeft className="w-5 h-5 text-gray-600" />
               <span className="hidden sm:inline text-gray-600">Back</span>
             </button>
-            
+
             <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <Heart className="w-5 h-5 text-pink-500" fill="currentColor" />
               Gallery
             </h1>
-            
+
             <div className="flex items-center gap-2">
               <a
                 href="/"
@@ -425,7 +540,7 @@ const Gallery = () => {
               </button>
             </div>
           </div>
-          
+
           {/* Filter Tabs */}
           <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
             {eventOptions.map((option) => (
@@ -506,9 +621,9 @@ const Gallery = () => {
       <div className="px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <WeddingLoader 
-              type="hearts" 
-              text="Loading your beautiful memories..." 
+            <WeddingLoader
+              type="hearts"
+              text="Loading your beautiful memories..."
               size="large"
             />
           </div>
@@ -567,90 +682,33 @@ const Gallery = () => {
                     }}
                   >
                     {img.isVideo ? (
-                      <div className="relative w-full h-full">
-                        {/* Try thumbnail first */}
-                        <img
-                          src={`/api/image-proxy?id=${img.id}&quality=thumbnail&width=400&height=400`}
-                          alt={img.name}
-                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
-                          loading="lazy"
-                          onError={(e) => {
-                            console.log('Thumbnail failed, showing video placeholder');
-                            // Hide the img and show the video element
-                            e.target.style.display = 'none';
-                            const videoElement = e.target.parentElement.querySelector('.video-fallback');
-                            const placeholderElement = e.target.parentElement.querySelector('.placeholder-fallback');
-                            
-                            // Try to load video first
-                            if (videoElement) {
-                              videoElement.style.display = 'block';
-                              videoElement.load();
-                            } else if (placeholderElement) {
-                              placeholderElement.style.display = 'flex';
-                            }
-                          }}
-                        />
-                        
-                        {/* Video element for thumbnail generation */}
-                        <video
-                          className="video-fallback w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
-                          style={{ display: 'none' }}
-                          src={img.fullUrl}
-                          muted
-                          playsInline
-                          preload="metadata"
-                          onLoadedData={(e) => {
-                            // Seek to 1 second to get a better frame
-                            e.target.currentTime = 1;
-                          }}
-                          onError={(e) => {
-                            console.log('Video loading failed, showing placeholder');
-                            e.target.style.display = 'none';
-                            const placeholderElement = e.target.parentElement.querySelector('.placeholder-fallback');
-                            if (placeholderElement) {
-                              placeholderElement.style.display = 'flex';
-                            }
-                          }}
-                        />
-                        
-                        {/* Final fallback placeholder */}
-                        <div 
-                          className="placeholder-fallback absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center"
-                          style={{ display: 'none' }}
-                        >
-                          <div className="text-center text-white">
-                            <Play className="w-12 h-12 mx-auto mb-2 opacity-70" fill="currentColor" />
-                            <div className="text-xs opacity-70">Video</div>
-                          </div>
-                        </div>
-                        
-                        {/* Video Play Icon Overlay */}
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                          <div className="w-16 h-16 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm">
-                            <Play className="w-8 h-8 text-white ml-1" fill="currentColor" />
-                          </div>
-                        </div>
-                        {/* Video Duration Badge */}
-                        <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm pointer-events-none">
-                          🎥 Video
-                        </div>
-                      </div>
+                      <VideoThumbnail
+                        src={`/api/image?fileId=${img.id}`}
+                        videoSrc={img.fullUrl}
+                        alt={img.name}
+                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
+                      />
                     ) : (
                       <img
-                        src={`/api/image-proxy?id=${img.id}&quality=thumbnail&width=400&height=400`}
+                        src={`/api/image?fileId=${img.id}`}
                         alt={img.name}
                         className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
                         loading="lazy"
+                        onError={(e) => {
+                          console.warn('Authenticated API failed for thumbnail, using direct URL');
+                          // Fallback to direct Google Drive URL
+                          e.target.src = img.fullUrl || img.webContentLink || img.url;
+                        }}
                       />
                     )}
-                    
+
                     {/* Uploader Info Overlay */}
                     {!isSelectionMode && img.uploader && img.uploader !== 'Unknown' && (
                       <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm">
                         📸 {img.uploader}
                       </div>
                     )}
-                    
+
                     {/* Action Buttons - Always visible */}
                     {!isSelectionMode && (
                       <div className="absolute bottom-2 right-2 flex gap-1">
@@ -696,11 +754,22 @@ const Gallery = () => {
           >
             <X className="w-6 h-6" />
           </button>
-          
-          {/* Image Counter & Uploader Info */}
+
+          {/* Image Counter & Info */}
           <div className="absolute top-4 left-4 text-white z-20 space-y-1">
             <div className="bg-black/50 px-3 py-2 rounded-lg text-sm backdrop-blur-sm">
               {currentImageIndex + 1} of {images.length}
+            </div>
+            {/* Connection Speed Indicator */}
+            <div className="bg-black/50 px-3 py-2 rounded-lg text-sm backdrop-blur-sm flex items-center gap-2">
+              {connectionSpeed === 'fast' ? (
+                <Wifi className="w-4 h-4 text-green-400" />
+              ) : connectionSpeed === 'medium' ? (
+                <Wifi className="w-4 h-4 text-yellow-400" />
+              ) : (
+                <WifiOff className="w-4 h-4 text-red-400" />
+              )}
+              <span className="text-xs">{connectionSpeed} connection</span>
             </div>
             {images[currentImageIndex]?.isVideo && (
               <div className="bg-black/50 px-3 py-2 rounded-lg text-sm backdrop-blur-sm">
@@ -712,8 +781,15 @@ const Gallery = () => {
                 📸 {images[currentImageIndex].uploader}
               </div>
             )}
+            {/* Loading Indicator */}
+            {isPreviewLoading && (
+              <div className="bg-black/50 px-3 py-2 rounded-lg text-sm backdrop-blur-sm flex items-center gap-2">
+                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-xs">Loading HD...</span>
+              </div>
+            )}
           </div>
-          
+
           {/* Navigation Buttons */}
           {images.length > 1 && (
             <>
@@ -723,7 +799,7 @@ const Gallery = () => {
               >
                 <ChevronLeft className="w-8 h-8" />
               </button>
-              
+
               <button
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-white/80 p-3 rounded-full bg-black/30 hover:bg-black/50 transition-all z-20 backdrop-blur-sm"
                 onClick={nextImage}
@@ -732,49 +808,74 @@ const Gallery = () => {
               </button>
             </>
           )}
-          
+
           {/* Full Screen Media Container */}
-          <div 
+          <div
             className="w-full h-full flex items-center justify-center p-4"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
           >
             {images[currentImageIndex]?.isVideo ? (
-              <video
-                src={previewImg}
-                controls
-                className="max-w-full max-h-full object-contain select-none"
-                style={{ maxWidth: '100vw', maxHeight: '100vh' }}
-                playsInline
-                preload="metadata"
-                onError={(e) => {
-                  console.error('Failed to load video, falling back to thumbnail');
-                  const currentImage = images[currentImageIndex];
-                  if (currentImage?.url && e.target.src !== currentImage.url) {
-                    e.target.src = currentImage.url;
-                  }
-                }}
-              />
+              <div className="relative max-w-full max-h-full flex items-center justify-center">
+                <video
+                  src={previewImg}
+                  controls
+                  className="max-w-full max-h-full object-contain select-none"
+                  style={{ maxWidth: '100vw', maxHeight: '100vh' }}
+                  playsInline
+                  preload="metadata"
+                  onLoadStart={() => setIsPreviewLoading(true)}
+                  onCanPlay={() => setIsPreviewLoading(false)}
+                  onError={(e) => {
+                    console.error('Failed to load video, falling back to thumbnail');
+                    setIsPreviewLoading(false);
+                    const currentImage = images[currentImageIndex];
+                    if (currentImage?.url && e.target.src !== currentImage.url) {
+                      e.target.src = currentImage.url;
+                    }
+                  }}
+                />
+                {isPreviewLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <div className="w-12 h-12 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
             ) : (
-              <img
-                src={previewImg}
-                alt="Full size preview"
-                className="max-w-full max-h-full object-contain select-none"
-                style={{ maxWidth: '100vw', maxHeight: '100vh' }}
-                onClick={nextImage}
-                draggable={false}
-                onError={(e) => {
-                  console.error('Failed to load full image, falling back to thumbnail');
-                  const currentImage = images[currentImageIndex];
-                  if (currentImage?.url && e.target.src !== currentImage.url) {
-                    e.target.src = currentImage.url;
-                  }
-                }}
-              />
+              <div className="relative max-w-full max-h-full flex items-center justify-center">
+                <img
+                  src={previewImg}
+                  alt="Full size preview"
+                  className={`max-w-full max-h-full object-contain select-none transition-opacity duration-300 ${
+                    isPreviewLoading ? 'opacity-70' : 'opacity-100'
+                  }`}
+                  style={{ maxWidth: '100vw', maxHeight: '100vh' }}
+                  onClick={nextImage}
+                  draggable={false}
+                  onLoad={() => setIsPreviewLoading(false)}
+                  onError={(e) => {
+                    console.error('Failed to load full image, falling back to thumbnail');
+                    setIsPreviewLoading(false);
+                    const currentImage = images[currentImageIndex];
+                    if (currentImage?.url && e.target.src !== currentImage.url) {
+                      e.target.src = currentImage.url;
+                    }
+                  }}
+                />
+                {/* Loading overlay for images */}
+                {isPreviewLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="bg-black/50 px-4 py-2 rounded-lg backdrop-blur-sm flex items-center gap-2">
+                      <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-white text-sm">Enhancing quality...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
-          
+
           {/* Bottom Actions */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3 z-20">
             <button

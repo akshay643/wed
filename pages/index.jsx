@@ -96,19 +96,54 @@ const WeddingPhotoApp = () => {
           const data = await response.json();
 
           if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-            // Filter out videos and convert Google Drive URLs to use our image proxy
-            const allImages = data.images
-              .filter(img => !img.isVideo) // Only use images for background, not videos
-              .map(img => {
-                if (img.id) {
-                  // Use optimized background size for faster loading
-                  return `/api/image-proxy?id=${img.id}&quality=background&width=1200&height=900`;
+            console.log(`Total items from API: ${data.images.length}`);
+            
+            // Filter out videos more strictly and validate image items
+            const validImages = data.images
+              .filter(img => {
+                // More strict video filtering
+                const isVideo = img.isVideo === true || 
+                               img.mimeType?.startsWith('video/') || 
+                               img.name?.match(/\.(mp4|mov|avi|mkv|wmv|flv|webm)$/i);
+                
+                const hasValidId = img.id && typeof img.id === 'string' && img.id.length > 0;
+                
+                if (isVideo) {
+                  console.log(`Filtering out video: ${img.name} (${img.mimeType})`);
+                  return false;
                 }
-                return null;
-              }).filter(Boolean); // Remove any null URLs
+                
+                if (!hasValidId) {
+                  console.log(`Filtering out item with invalid ID: ${img.name}`);
+                  return false;
+                }
+                
+                return true;
+              });
+
+            console.log(`Valid images after filtering: ${validImages.length} (filtered out ${data.images.length - validImages.length} items)`);
+
+            if (validImages.length === 0) {
+              throw new Error('No valid images found after filtering');
+            }
+
+            // Convert to image proxy URLs with validation
+            const allImages = validImages
+              .map(img => {
+                try {
+                  // Use optimized background size for faster loading
+                  const imageUrl = `/api/image-proxy?id=${img.id}&quality=background&width=1200&height=900`;
+                  console.log(`Generated image URL: ${imageUrl} for ${img.name}`);
+                  return imageUrl;
+                } catch (error) {
+                  console.warn(`Failed to generate URL for image ${img.name}:`, error);
+                  return null;
+                }
+              })
+              .filter(Boolean); // Remove any null URLs
 
             if (allImages.length > 0) {
-              console.log(`Loaded ${allImages.length} background images from Drive (filtered out ${data.images.length - allImages.length} videos)`);
+              console.log(`Final background images: ${allImages.length}`);
               setBackgroundImages(allImages);
               setImageLoading(false);
 
@@ -116,25 +151,56 @@ const WeddingPhotoApp = () => {
               localStorage.setItem('wedding-bg-images', JSON.stringify(allImages));
               localStorage.setItem('wedding-bg-images-timestamp', now.toString());
 
-              // Preload images for faster loading with priority loading
-              allImages.slice(0, 3).forEach((imageUrl, index) => {
-                const img = new Image();
-                img.src = imageUrl;
-                img.onload = () => console.log(`Priority cached image ${index + 1}: ${imageUrl}`);
-                img.onerror = () => console.warn(`Failed to load priority image ${index + 1}: ${imageUrl}`);
-              });
+              // Validate and preload images with error handling
+              const validateAndPreloadImages = async () => {
+                const validatedImages = [];
+                
+                // Test first 3 images immediately
+                for (let i = 0; i < Math.min(3, allImages.length); i++) {
+                  const imageUrl = allImages[i];
+                  try {
+                    await new Promise((resolve, reject) => {
+                      const img = new Image();
+                      img.onload = () => {
+                        console.log(`✓ Validated image ${i + 1}: ${imageUrl}`);
+                        validatedImages.push(imageUrl);
+                        resolve();
+                      };
+                      img.onerror = () => {
+                        console.warn(`✗ Failed to load image ${i + 1}: ${imageUrl}`);
+                        reject(new Error(`Image load failed`));
+                      };
+                      img.src = imageUrl;
+                      
+                      // Timeout after 10 seconds
+                      setTimeout(() => reject(new Error('Timeout')), 10000);
+                    });
+                  } catch (error) {
+                    console.warn(`Failed to validate image ${i + 1}:`, error);
+                  }
+                }
 
-              // Load remaining images with lower priority
-              setTimeout(() => {
-                allImages.slice(3).forEach((imageUrl, index) => {
-                  const img = new Image();
-                  img.src = imageUrl;
-                  img.onload = () => console.log(`Background cached image ${index + 4}: ${imageUrl}`);
-                  img.onerror = () => console.warn(`Failed to load background image ${index + 4}: ${imageUrl}`);
-                });
-              }, 1000);
+                // If no images validated, use fallback
+                if (validatedImages.length === 0) {
+                  console.warn('No images validated, using fallback');
+                  setBackgroundImages(['/wedding-couple.jpeg']);
+                  setImageError(true);
+                }
+
+                // Load remaining images in background
+                setTimeout(() => {
+                  allImages.slice(3).forEach((imageUrl, index) => {
+                    const img = new Image();
+                    img.onload = () => console.log(`Background cached image ${index + 4}: ${imageUrl}`);
+                    img.onerror = () => console.warn(`Failed to load background image ${index + 4}: ${imageUrl}`);
+                    img.src = imageUrl;
+                  });
+                }, 2000);
+              };
+
+              validateAndPreloadImages();
             } else {
-              throw new Error('No valid image IDs found');
+              throw new Error('No valid image URLs generated');
             }
           } else {
             throw new Error('No images found in API response');
@@ -168,28 +234,63 @@ const WeddingPhotoApp = () => {
     loadBackgroundImages();
   }, []);
 
-  // Rotate background images every hour with improved caching
+  // Rotate background images every hour with improved caching and error handling
   useEffect(() => {
     if (backgroundImages.length > 1) {
       const interval = setInterval(() => {
         setCurrentBgImage((prevIndex) => {
-          const newIndex = (prevIndex + 1) % backgroundImages.length;
+          let newIndex = (prevIndex + 1) % backgroundImages.length;
+          let attempts = 0;
+          const maxAttempts = backgroundImages.length;
+
+          // Try to find a valid image, skip if the current one fails
+          const findValidImage = async () => {
+            while (attempts < maxAttempts) {
+              const testIndex = (prevIndex + 1 + attempts) % backgroundImages.length;
+              const imageUrl = backgroundImages[testIndex];
+              
+              try {
+                // Quick validation of the image
+                await new Promise((resolve, reject) => {
+                  const img = new Image();
+                  img.onload = resolve;
+                  img.onerror = reject;
+                  img.src = imageUrl;
+                  
+                  // Quick timeout for validation
+                  setTimeout(() => reject(new Error('Timeout')), 3000);
+                });
+                
+                newIndex = testIndex;
+                break;
+              } catch (error) {
+                console.warn(`Background image ${testIndex} failed to load, trying next...`);
+                attempts++;
+              }
+            }
+          };
+
+          // Run validation asynchronously, but return immediately
+          findValidImage();
+          
           setLastImageUpdate(new Date().toISOString());
 
-          // Preload next 2 images for smoother transitions
+          // Preload next 2 images for smoother transitions with error handling
           const nextImage1 = backgroundImages[(newIndex + 1) % backgroundImages.length];
           const nextImage2 = backgroundImages[(newIndex + 2) % backgroundImages.length];
 
-          [nextImage1, nextImage2].forEach(imageUrl => {
+          [nextImage1, nextImage2].forEach((imageUrl, index) => {
             if (imageUrl) {
               const img = new Image();
+              img.onload = () => console.log(`Preloaded next image ${index + 1}`);
+              img.onerror = () => console.warn(`Failed to preload next image ${index + 1}: ${imageUrl}`);
               img.src = imageUrl;
             }
           });
 
           return newIndex;
         });
-      }, 5000); // 1 hour = 3,600,000ms
+      }, 5000); // 5 seconds for testing, change to 3600000 for 1 hour
 
       return () => clearInterval(interval);
     }
@@ -516,13 +617,13 @@ const WeddingPhotoApp = () => {
           </div>
         )}
 
-        {/* Background Image */}
+        {/* Background Image with Error Handling */}
         <div
           className={`absolute inset-0 transition-all duration-1000 ease-in-out ${
             imageLoading ? 'opacity-0' : 'opacity-100'
           }`}
           style={{
-            backgroundImage: backgroundImages.length > 0
+            backgroundImage: backgroundImages.length > 0 && backgroundImages[currentBgImage]
               ? `url('${backgroundImages[currentBgImage]}')`
               : "url('/wedding-couple.jpeg')",
             backgroundSize: "cover",
@@ -530,9 +631,20 @@ const WeddingPhotoApp = () => {
             backgroundRepeat: "no-repeat",
             filter: imageLoading ? 'blur(10px)' : 'none',
           }}
+          onError={(e) => {
+            console.warn('Background image failed to load, using fallback');
+            e.target.style.backgroundImage = "url('/wedding-couple.jpeg')";
+          }}
         >
           {/* Subtle overlay for better text readability */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/30"></div>
+          
+          {/* Error indicator for debugging */}
+          {imageError && (
+            <div className="absolute top-20 right-4 bg-red-500/20 backdrop-blur-sm text-white text-xs px-2 py-1 rounded border border-red-300/30">
+              ⚠ Using fallback image
+            </div>
+          )}
         </div>
 
         <div className="relative z-10 h-full p-4 flex flex-col justify-between">
@@ -731,7 +843,7 @@ const WeddingPhotoApp = () => {
                 className="glass-card p-4 rounded-xl transition-all duration-300 active:scale-95 touch-manipulation group"
               >
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mx-auto mb-3 relative">
+                  <div className="upload-icon w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mx-auto mb-3 relative">
                     <Camera className="w-6 h-6 text-purple-300" />
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
                       <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
@@ -824,45 +936,85 @@ const WeddingPhotoApp = () => {
   // Function to manually refresh background images cache
   const refreshBackgroundImages = async () => {
     console.log('Manually refreshing background images...');
+    setImageLoading(true);
+    setImageError(false);
 
     // Clear existing cache
     localStorage.removeItem('wedding-bg-images');
     localStorage.removeItem('wedding-bg-images-timestamp');
 
-    // Reload images
+    // Reload images with validation
     try {
       const response = await fetch('/api/gallery?event=all');
       if (response.ok) {
         const data = await response.json();
 
         if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-          const allImages = data.images.map(img => {
-            if (img.id) {
-              return `/api/image-proxy?id=${img.id}`;
-            }
-            return null;
-          }).filter(Boolean);
-
-          if (allImages.length > 0) {
-            setBackgroundImages(allImages);
-
-            // Cache the new images
-            const now = Date.now();
-            localStorage.setItem('wedding-bg-images', JSON.stringify(allImages));
-            localStorage.setItem('wedding-bg-images-timestamp', now.toString());
-
-            // Preload new images
-            allImages.forEach(imageUrl => {
-              const img = new Image();
-              img.src = imageUrl;
+          console.log(`Refreshing: Total items from API: ${data.images.length}`);
+          
+          // Filter out videos more strictly
+          const validImages = data.images
+            .filter(img => {
+              const isVideo = img.isVideo === true || 
+                             img.mimeType?.startsWith('video/') || 
+                             img.name?.match(/\.(mp4|mov|avi|mkv|wmv|flv|webm)$/i);
+              
+              const hasValidId = img.id && typeof img.id === 'string' && img.id.length > 0;
+              
+              if (isVideo) {
+                console.log(`Refresh: Filtering out video: ${img.name}`);
+                return false;
+              }
+              
+              if (!hasValidId) {
+                console.log(`Refresh: Filtering out item with invalid ID: ${img.name}`);
+                return false;
+              }
+              
+              return true;
             });
 
-            console.log(`Refreshed ${allImages.length} background images`);
+          console.log(`Refresh: Valid images after filtering: ${validImages.length}`);
+
+          const allImages = validImages
+            .map(img => `/api/image-proxy?id=${img.id}&quality=background&width=1200&height=900`)
+            .filter(Boolean);
+
+          if (allImages.length > 0) {
+            console.log(`Refresh: Final background images: ${allImages.length}`);
+            setBackgroundImages(allImages);
+            setImageLoading(false);
+
+            // Cache the refreshed images
+            localStorage.setItem('wedding-bg-images', JSON.stringify(allImages));
+            localStorage.setItem('wedding-bg-images-timestamp', Date.now().toString());
+
+            // Validate first few images
+            for (let i = 0; i < Math.min(3, allImages.length); i++) {
+              const img = new Image();
+              img.onload = () => console.log(`✓ Refresh validated image ${i + 1}`);
+              img.onerror = () => console.warn(`✗ Refresh failed to validate image ${i + 1}`);
+              img.src = allImages[i];
+            }
+
+            alert(`✅ Refreshed ${allImages.length} background images`);
+          } else {
+            throw new Error('No valid images after refresh');
           }
+        } else {
+          throw new Error('No images returned from API');
         }
+      } else {
+        throw new Error(`API returned ${response.status}`);
       }
     } catch (error) {
       console.error('Failed to refresh background images:', error);
+      setImageError(true);
+      setImageLoading(false);
+      alert(`❌ Failed to refresh: ${error.message}`);
+      
+      // Use fallback
+      setBackgroundImages(['/wedding-couple.jpeg']);
     }
   };
 

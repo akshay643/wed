@@ -42,7 +42,7 @@ function WishesPage() {
           // Fetch fresh images
           const response = await fetch('/api/gallery?event=all');
           const data = await response.json();
-          
+
           if (data.success && data.images) {
             // Filter out videos, only use images for background
             images = data.images.filter(img => !img.isVideo);
@@ -86,11 +86,11 @@ function WishesPage() {
 
       <div className="min-h-screen relative overflow-hidden">
         {/* Background Image with Overlay */}
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-1000 ease-in-out"
           style={{
-            backgroundImage: imageError 
-              ? `url('/wedding-couple.jpeg')` 
+            backgroundImage: imageError
+              ? `url('/wedding-couple.jpeg')`
               : `url('${backgroundImage}')`,
           }}
         >
@@ -129,7 +129,7 @@ function WishesPage() {
               <Sparkles className="w-8 h-8 text-yellow-300 animate-pulse" />
             </div>
             <p className="text-white/90 text-lg drop-shadow-md max-w-md mx-auto">
-              Beautiful messages and blessings from our loved ones for 
+              Beautiful messages and blessings from our loved ones for
               <span className="font-semibold text-pink-200"> Akshay & Tripti</span>
             </p>
           </div>
