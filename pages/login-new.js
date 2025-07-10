@@ -9,12 +9,53 @@ const LoginPage = () => {
   const [passcode, setPasscode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [weddingImages, setWeddingImages] = useState([]);
   const router = useRouter();
 
   useEffect(() => {
     // Check if already authenticated
     checkAuth();
+    // Load wedding images
+    loadWeddingImages();
   }, []);
+
+  useEffect(() => {
+    // Auto-rotate background images every 10 seconds
+    if (weddingImages.length > 1) {
+      const interval = setInterval(() => {
+        setCurrentImageIndex((prevIndex) =>
+          (prevIndex + 1) % weddingImages.length
+        );
+      }, 10000); // 10 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [weddingImages]);
+
+  const loadWeddingImages = async () => {
+    try {
+      // Get list of wedding images from the API
+      const response = await fetch('/api/wedding-images');
+      if (response.ok) {
+        const images = await response.json();
+        setWeddingImages(images);
+      } else {
+        // Fallback to default images if API fails
+        setWeddingImages([
+          '/wedding-couple.jpeg',
+          '/wedding-souple-2.jpg'
+        ]);
+      }
+    } catch (error) {
+      console.log('Failed to load wedding images, using defaults');
+      // Fallback to default images
+      setWeddingImages([
+        '/wedding-couple.jpeg',
+        '/wedding-souple-2.jpg'
+      ]);
+    }
+  };
 
   const checkAuth = async () => {
     try {
@@ -82,9 +123,11 @@ const LoginPage = () => {
       </Head>
 
       <div
-        className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+        className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden transition-all duration-1000 ease-in-out"
         style={{
-          backgroundImage: "url('/wedding-couple.jpeg')",
+          backgroundImage: weddingImages.length > 0
+            ? `url('${weddingImages[currentImageIndex]}')`
+            : "url('/wedding-couple.jpeg')",
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
@@ -94,35 +137,59 @@ const LoginPage = () => {
         {/* Overlay */}
         <div className="absolute inset-0 bg-black/30"></div>
 
-        {/* Main Content Container */}
-        <div className="relative z-10 w-full max-w-md">
-
-          {/* Couple Profile Circle */}
-          <div className="flex justify-center mb-8">
-            <div className="w-20 h-20 rounded-full border-4 border-white/80 overflow-hidden bg-white/10 backdrop-blur-sm">
-              <img
-                src="/wedding-couple.png"
-                alt="Couple"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.style.display = "none";
-                }}
+        {/* Image indicators */}
+        {weddingImages.length > 1 && (
+          <div className="absolute top-4 right-4 z-20 flex gap-2">
+            {weddingImages.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentImageIndex(index)}
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  index === currentImageIndex
+                    ? 'bg-white scale-125'
+                    : 'bg-white/50 hover:bg-white/75'
+                }`}
+                aria-label={`Switch to image ${index + 1}`}
               />
+            ))}
+          </div>
+        )}
+
+        {/* Image counter */}
+        {weddingImages.length > 1 && (
+          <div className="absolute bottom-4 right-4 z-20 bg-black/50 text-white px-3 py-1 rounded-full text-sm backdrop-blur-sm">
+            {currentImageIndex + 1} / {weddingImages.length}
+          </div>
+        )}
+
+        {/* Preload next image for smooth transition */}
+        {weddingImages.length > 1 && (
+          <div className="hidden">
+            <img
+              src={weddingImages[(currentImageIndex + 1) % weddingImages.length]}
+              alt="Preload next"
+              onLoad={() => {/* Preload complete */}}
+            />
+          </div>
+        )}
+
+        {/* Main Content Container - Flexbox to push content to bottom */}
+        <div className="relative z-10 w-full max-w-md min-h-screen flex flex-col justify-end pb-8">
+
+          {/* Wedding Title and Login Form - At the bottom */}
+          <div className="space-y-6">
+            {/* Wedding Title */}
+            <div className="text-center">
+              <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 drop-shadow-lg">
+                Akshay & Tripti Wedding
+              </h1>
+              <p className="text-white/90 text-lg mb-6 drop-shadow-md">
+                Please Share your photos & videos with us for this special day! ❤️
+              </p>
             </div>
-          </div>
 
-          {/* Wedding Title */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 drop-shadow-lg">
-              Akshay & Tripti Wedding
-            </h1>
-            <p className="text-white/90 text-lg mb-6 drop-shadow-md">
-              Please Share your photos & videos with us for this special day! ❤️
-            </p>
-          </div>
-
-          {/* Login Form Card - Moved to the bottom */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border border-white/20 mt-auto">
+            {/* Login Form Card */}
+            <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 border border-white/20">
             {step === 1 ? (
               /* Step 1: Name Form */
               <form onSubmit={handleNameSubmit} className="space-y-4">
@@ -224,6 +291,7 @@ const LoginPage = () => {
                 </div>
               </form>
             )}
+          </div>
           </div>
         </div>
       </div>
